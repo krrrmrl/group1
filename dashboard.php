@@ -224,8 +224,25 @@ if (!isset($_SESSION['user_id'])) {
             </label>
         </div>
     </div>
+    <!-- AI Object Detection Panel -->
+    <div class="control-panel" style="margin-top: 2rem;">
+        <h3>AI Object Detection (Teachable Machine)</h3>
+        <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
+            Ensure you have trained a Teachable Machine model with classes "card" and "no card". Paste your model URL below.
+        </p>
+        <div style="margin-bottom: 1rem;">
+            <input type="text" id="modelUrl" value="https://teachablemachine.withgoogle.com/models/VHjEv4e39/" placeholder="https://teachablemachine.withgoogle.com/models/YOUR_MODEL/" style="width: 100%; padding: 0.75rem; border-radius: 0.375rem; border: 1px solid rgba(255, 255, 255, 0.1); background-color: rgba(15, 23, 42, 0.5); color: white; outline: none;">
+        </div>
+        <button type="button" onclick="initAI()" style="background-color: var(--primary); color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 0.375rem; cursor: pointer; font-weight: 500; transition: background-color 0.2s ease;">Start Camera & AI</button>
+        <button type="button" onclick="stopAI()" style="background-color: rgba(239, 68, 68, 0.1); color: #fca5a5; padding: 0.75rem 1.5rem; border: none; border-radius: 0.375rem; cursor: pointer; font-weight: 500; margin-left: 0.5rem; transition: background-color 0.2s ease;">Stop Camera</button>
+        
+        <div id="webcam-container" style="margin-top: 1.5rem; border-radius: 0.5rem; overflow: hidden; display: flex; justify-content: center; background-color: #000;"></div>
+        <div id="label-container" style="margin-top: 1rem; font-weight: 500; text-align: center; font-size: 1.1rem;"></div>
+    </div>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
 <script>
     function toggleRGB(checkbox) {
         // According to requirements: C0=0 is ON, C0=1 is OFF
@@ -240,9 +257,94 @@ if (!isset($_SESSION['user_id'])) {
             })
             .catch(error => {
                 console.error('Error sending RGB command:', error);
-                // Optional: revert switch if there is a network error
-                // checkbox.checked = !checkbox.checked;
             });
+    }
+
+    // AI Object Detection Logic
+    let model, webcam, labelContainer, maxPredictions;
+    let isRunning = false;
+    let lastState = ""; // To prevent spamming requests
+
+    async function initAI() {
+        if (isRunning) return;
+        const modelURLInput = document.getElementById("modelUrl").value;
+        const URL = modelURLInput.trim();
+        
+        if (!URL) {
+            alert("Please enter a valid Teachable Machine Model URL.");
+            return;
+        }
+
+        const modelURL = URL + (URL.endsWith('/') ? '' : '/') + "model.json";
+        const metadataURL = URL + (URL.endsWith('/') ? '' : '/') + "metadata.json";
+
+        try {
+            document.getElementById("label-container").innerText = "Loading model...";
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            const flip = true; 
+            webcam = new tmImage.Webcam(400, 400, flip); 
+            await webcam.setup(); 
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            document.getElementById("webcam-container").innerHTML = "";
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            labelContainer = document.getElementById("label-container");
+            labelContainer.innerHTML = "Camera Started";
+            
+            isRunning = true;
+        } catch (error) {
+            console.error(error);
+            document.getElementById("label-container").innerText = "Error loading model. Check URL or console.";
+        }
+    }
+
+    async function loop() {
+        if (!isRunning) return;
+        webcam.update(); 
+        await predict();
+        window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+        const prediction = await model.predictTopK(webcam.canvas, 1);
+        if (prediction && prediction.length > 0) {
+            const className = prediction[0].className.toLowerCase().trim();
+            const probability = prediction[0].probability.toFixed(2);
+            labelContainer.innerText = `Detected: ${prediction[0].className} (${(probability * 100).toFixed(0)}%)`;
+
+            // Only trigger if confidence is high (e.g., > 80%)
+            if (probability > 0.8) {
+                if (className === "card" && lastState !== "card") {
+                    lastState = "card";
+                    sendUpdate("1"); // C0=1
+                } else if (className === "no card" && lastState !== "no card") {
+                    lastState = "no card";
+                    sendUpdate("0"); // C0=0
+                }
+            }
+        }
+    }
+
+    function sendUpdate(value) {
+        const url = `https://tinkercode.my:8443/tinkeriot/update?token=466d16766c7046158bee007840c7caa8&C0=${value}`;
+        fetch(url, { mode: 'no-cors' })
+            .then(() => console.log(`AI Command sent: C0=${value}`))
+            .catch(err => console.error("Error sending AI command:", err));
+    }
+
+    function stopAI() {
+        isRunning = false;
+        if (webcam) {
+            webcam.stop();
+        }
+        document.getElementById("webcam-container").innerHTML = "";
+        if (labelContainer) {
+            labelContainer.innerHTML = "Camera Stopped";
+        }
+        lastState = "";
     }
 </script>
 
