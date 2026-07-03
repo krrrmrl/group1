@@ -225,12 +225,12 @@ if (!isset($_SESSION['user_id'])) {
         </div>
     </div> -->
 
-    <!-- Button State Monitor -->
+    <!-- Device State Monitor -->
     <div class="control-panel" style="margin-top: 2rem;">
-        <h3>Button State Monitor</h3>
+        <h3>Device State Monitor</h3>
         <div class="device-card">
             <div class="device-info">
-                <h4>Physical Button</h4>
+                <h4>Device</h4>
                 <p>Real-time state from TinkerIoT</p>
             </div>
             <div id="buttonStateDisplay" style="font-size: 1.1rem; font-weight: bold; padding: 0.5rem 1rem; border-radius: 0.5rem; background-color: rgba(255,255,255,0.1); color: var(--text-main);">Loading...</div>
@@ -411,7 +411,7 @@ if (!isset($_SESSION['user_id'])) {
         lastState = "";
     }
 
-    // Button State Polling
+    // Device State Polling
     function fetchButtonState() {
         const url = 'https://tinkercode.my:8443/tinkeriot/get?token=9f6068c6fdb84e17a92a45cf842e6d78&C0';
         fetch(url)
@@ -419,11 +419,11 @@ if (!isset($_SESSION['user_id'])) {
             .then(data => {
                 const display = document.getElementById('buttonStateDisplay');
                 if (data.includes('1')) {
-                    display.innerText = 'ON / PRESSED';
+                    display.innerText = 'ONLINE';
                     display.style.backgroundColor = 'rgba(34, 197, 94, 0.2)';
                     display.style.color = '#4ade80';
                 } else if (data.includes('0')) {
-                    display.innerText = 'OFF / RELEASED';
+                    display.innerText = 'OFFLINE';
                     display.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
                     display.style.color = '#f87171';
                 } else {
@@ -431,7 +431,7 @@ if (!isset($_SESSION['user_id'])) {
                 }
             })
             .catch(error => {
-                console.error('Error fetching button state:', error);
+                console.error('Error fetching device state:', error);
                 document.getElementById('buttonStateDisplay').innerText = 'Offline';
             });
     }
