@@ -277,6 +277,8 @@ if (!isset($_SESSION['user_id'])) {
     let model, webcam, labelContainer, maxPredictions;
     let isRunning = false;
     let lastState = ""; // To prevent spamming requests
+    let lastDetectionTime = 0;
+    const DETECTION_COOLDOWN = 3000; // 3 seconds cooldown
 
     async function initAI() {
         if (isRunning) return;
@@ -328,17 +330,66 @@ if (!isset($_SESSION['user_id'])) {
             const probability = prediction[0].probability.toFixed(2);
             labelContainer.innerText = `Detected: ${prediction[0].className} (${(probability * 100).toFixed(0)}%)`;
 
-            // Only trigger if confidence is high (e.g., > 80%)
-            if (probability > 0.8) {
-                if (className === "card" && lastState !== "card") {
-                    lastState = "card";
-                    sendUpdate("1"); // C0=1
-                } else if (className === "no card" && lastState !== "no card") {
-                    lastState = "no card";
-                    sendUpdate("0"); // C0=0
+            // Only trigger if confidence is high (e.g., >= 85%)
+            if (probability >= 0.85) {
+                const now = Date.now();
+                if (now - lastDetectionTime > DETECTION_COOLDOWN) {
+                    if (className === "card" && lastState !== "card") {
+                        lastState = "card";
+                        lastDetectionTime = now;
+                        sendUpdate("1"); // C0=1
+                        saveSnapshot();
+                    } else if (className === "no card" && lastState !== "no card") {
+                        lastState = "no card";
+                        lastDetectionTime = now;
+                        sendUpdate("0"); // C0=0
+                    }
                 }
             }
         }
+    }
+
+    function saveSnapshot() {
+        if (!webcam || !webcam.canvas) return;
+        
+        // Create an off-screen canvas to draw the watermark
+        const canvas = document.createElement('canvas');
+        canvas.width = webcam.canvas.width;
+        canvas.height = webcam.canvas.height;
+        const ctx = canvas.getContext('2d');
+        
+        // Draw the original webcam frame
+        ctx.drawImage(webcam.canvas, 0, 0);
+        
+        // Add datetime watermark
+        const now = new Date();
+        const datetimeStr = now.toLocaleString();
+        
+        ctx.font = '16px Arial';
+        ctx.fillStyle = 'white';
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 3;
+        ctx.textAlign = 'right';
+        
+        const x = canvas.width - 10;
+        const y = canvas.height - 15;
+        
+        // Draw stroke for better visibility, then fill
+        ctx.strokeText(datetimeStr, x, y);
+        ctx.fillText(datetimeStr, x, y);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        
+        fetch('save_image.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ image: dataUrl })
+        })
+        .then(res => res.json())
+        .then(data => console.log('Snapshot saved:', data))
+        .catch(err => console.error('Error saving snapshot:', err));
     }
 
     function sendUpdate(value) {
