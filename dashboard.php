@@ -210,7 +210,7 @@ if (!isset($_SESSION['user_id'])) {
         <p>You have successfully logged in. This is your responsive, modern dashboard area.</p>
     </div>
 
-    <!-- Device Control Panel -->
+    <!-- Device Control Panel
     <div class="control-panel">
         <h3>Device Controls</h3>
         <div class="device-card">
@@ -223,7 +223,7 @@ if (!isset($_SESSION['user_id'])) {
                 <span class="slider"></span>
             </label>
         </div>
-    </div>
+    </div> -->
 
     <!-- Button State Monitor -->
     <div class="control-panel" style="margin-top: 2rem;">
